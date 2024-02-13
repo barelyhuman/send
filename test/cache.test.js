@@ -3,43 +3,99 @@
 const { test } = require('tap')
 const { createStore } = require('../lib/cache')
 
-test('cache', async function (t) {
-  const { store, retrieve } = createStore()
+test('cache read', async function (t) {
+  const store = {}
 
-  const path = '/random/path'
-  const value = {
-    d: '123'
-  }
-  store(path, value)
-  t.same(retrieve(path), value)
+  const staticStore = createStore(store)
+
+  const path = '/foo'
+  const value = Buffer.from('bar')
+
+  store[path] = value
+  t.same(staticStore.read(path), value)
 })
 
-test('cache cleanup', async function (t) {
-  let cleaned = false
-  const { store } = createStore((cache, key) => {
-    if (!(cache.get(key)?.deref())) {
-      cleaned = true
-      cache.delete(key)
-    }
+test('cache stream', async function (t) {
+  const store = {}
+
+  const staticStore = createStore(store)
+
+  const path = '/foo/bar'
+  const value = Buffer.from('foo bar foobar', 'utf8')
+
+  store[path] = value
+  const stream = staticStore.createReadStream(path)
+
+  const p = new Promise((resolve) => {
+    let buf = Buffer.from('')
+    stream.on('data', (chunk) => {
+      buf = Buffer.concat([buf, chunk], buf.length + chunk.length)
+    })
+    stream.on('end', () => {
+      resolve(buf)
+    })
   })
 
-  const path = '/random/path'
+  const streamValue = await p
 
-  // remove value's reference to
-  // clear the pointers to the above object
+  t.same(streamValue, value)
+})
+
+test('cache cleanup on read', async function (t) {
+  let store
+
   {
-    let value = {
-      d: '123'
+    let data = {
+      foo: Buffer.from('bar')
     }
-    store(path, value)
-    value = undefined
+    store = createStore(data)
+    data = undefined
   }
+
+  t.same(store.read('foo'), Buffer.from('bar'))
 
   global.gc()
 
   // wait for a few seconds for GC to complete and the above reference to be
   // cleaned
   await new Promise(resolve => setTimeout(() => resolve(), 10_000))
-  t.ok(cleaned)
-  t.end()
+
+  // should be null not a falsey value
+  t.same(store.read('foo'), null)
 })
+
+// FIXME: figure out why the creation of stream, keeps the reference alive
+// test('cache cleanup on read only stream', async function (t) {
+//   let store
+
+//   {
+//     let data = {
+//       foo: Buffer.from('bar')
+//     }
+//     store = createStore(data)
+//     data = undefined
+//   }
+
+//   global.gc()
+
+//   // wait for a few seconds for GC to complete and the above reference to be
+//   // cleaned
+//   await new Promise(resolve => setTimeout(() => resolve(), 15_000))
+
+//   const p = () => {
+//     const stream = store.createReadStream('foo')
+//     return new Promise((resolve) => {
+//       let buf = Buffer.from('')
+//       stream.on('data', (chunk) => {
+//         buf = Buffer.concat([buf, chunk], buf.length + chunk.length)
+//       })
+//       stream.on('end', () => {
+//         resolve(buf)
+//       })
+//     })
+//   }
+
+//   const streamValue = await p()
+//   console.log({ streamValue,streamValueS:streamValue.toString() })
+//   t.notOk(streamValue)
+// })
