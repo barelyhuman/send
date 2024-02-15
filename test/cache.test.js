@@ -5,25 +5,25 @@ const { createStore } = require('../lib/cache')
 
 test('cache read', async function (t) {
   const store = {}
-
-  const staticStore = createStore(store)
-
   const path = '/foo'
   const value = Buffer.from('bar')
 
   store[path] = value
-  t.same(staticStore.read(path), value)
+
+  const staticStore = createStore(store)
+
+  t.equal(staticStore.read(path), value)
 })
 
 test('cache stream', async function (t) {
   const store = {}
 
-  const staticStore = createStore(store)
-
   const path = '/foo/bar'
   const value = Buffer.from('foo bar foobar', 'utf8')
 
   store[path] = value
+
+  const staticStore = createStore(store)
   const stream = staticStore.createReadStream(path)
 
   const p = new Promise((resolve) => {
@@ -61,10 +61,10 @@ test('cache cleanup on read', async function (t) {
   await new Promise(resolve => setTimeout(() => resolve(), 10_000))
 
   // should be null not a falsey value
-  t.same(store.read('foo'), null)
+  t.equal(store.read('foo'), null)
 })
 
-// FIXME: figure out why the creation of stream, keeps the reference alive
+// FIXME: figure out why the stream holds reference to the buffer
 // test('cache cleanup on read only stream', async function (t) {
 //   let store
 
@@ -96,6 +96,5 @@ test('cache cleanup on read', async function (t) {
 //   }
 
 //   const streamValue = await p()
-//   console.log({ streamValue,streamValueS:streamValue.toString() })
-//   t.notOk(streamValue)
+//   t.equal(streamValue, Buffer.from(''))
 // })
